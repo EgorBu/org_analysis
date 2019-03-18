@@ -9,12 +9,10 @@ import logging as log
 from github import UnknownObjectException, Repository
 from tqdm import tqdm
 
+from org_analysis.defaults import CSV_NAME, DIRECTORY_FIELD_NAME, GITHUB_TOKEN_ENV_VAR, N_CORES, \
+    URL_FIELD_NAME
 from org_analysis.utils import ArgumentDefaultsHelpFormatterNoNone, clone_repo, init_github, \
-    filter_kwargs, GITHUB_TOKEN_ENV_VAR
-
-
-CSV_NAME = "repositories.csv"
-N_CORES = 1
+    filter_kwargs
 
 
 def clone_repo_multiprocessing(kwargs):
@@ -32,7 +30,8 @@ def make_repo_dest_dir(repository: Repository.Repository, root_dir: str) -> str:
     return os.path.join(root_dir, repository.full_name)
 
 
-def handler(login, password, token_env, organization, cores, output, force, csv_name):
+def handler(login, password, token_env, organization, cores, output, force, csv_name,
+            url_field_name, directory_field_name):
     """
     Retrieve list of repositories in organization/user and download them to output directory and
     save CSV with fields `URL,directory`.
@@ -46,6 +45,8 @@ def handler(login, password, token_env, organization, cores, output, force, csv_
     :param force: if not force and repository was cloned already - nothing will be done. If force
                   and repository was cloned - repository will be deleted and cloned again.
     :param csv_name: name of csv to store statistics.
+    :param url_field_name: name of URL field in CSV (GitHub URL).
+    :param directory_field_name: name of directory field in CSV (path to repository)..
     """
     entrypoint = init_github(login_or_token=login, password=password,
                              token_env=token_env)
@@ -76,7 +77,7 @@ def handler(login, password, token_env, organization, cores, output, force, csv_
              f"successfully")
     csv_loc = os.path.join(output, csv_name)
     with open(csv_loc, "w") as f:
-        f.write("URL,directory\n")
+        f.write(f"{url_field_name},{directory_field_name}\n")
         for dest_dir, repo_url in good_res:
             f.write(f"{repo_url},{dest_dir}\n")
 
@@ -97,6 +98,10 @@ def add_download_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
     parser.add_argument("-f", "--force", action="store_true",
                         help="Force to clone repository.")
     parser.add_argument("--csv-name", default=CSV_NAME, help="Name of csv to store statistics.")
+    parser.add_argument("--url-field-name", default=URL_FIELD_NAME,
+                        help="Name of URL field in CSV (GitHub URL).")
+    parser.add_argument("--directory-field-name", default=DIRECTORY_FIELD_NAME,
+                        help="Name of directory field in CSV (path to repository).")
 
 
 if __name__ == "__main__":

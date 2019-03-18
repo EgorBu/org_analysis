@@ -7,7 +7,7 @@ import subprocess
 
 from github import Github
 
-GITHUB_TOKEN_ENV_VAR = "GITHUB_TOKEN"
+from org_analysis.defaults import GITHUB_TOKEN_ENV_VAR
 
 
 class ArgumentDefaultsHelpFormatterNoNone(argparse.ArgumentDefaultsHelpFormatter):
@@ -29,7 +29,7 @@ def init_github(login_or_token: str = None, password: str = None,
     :param login_or_token: user/login or token.
     :param password: password.
     :param token_env: Environment variable for GitHub token.
-    :return:
+    :return: entrypoint to access Github API v3.
     """
     if login_or_token is None:
         # Try to load token
@@ -64,5 +64,12 @@ def clone_repo(repo_url: str, dest: str = "", force: bool = True) -> str:
 
 
 def filter_kwargs(kwargs, func):
+    """
+    Filter kwargs based on signature of function.
+
+    :param kwargs: kwargs.
+    :param func: function.
+    :return: filtered kwargs.
+    """
     func_param = inspect.signature(func).parameters.keys()
     return {k: v for k, v in kwargs.items() if k in func_param}
