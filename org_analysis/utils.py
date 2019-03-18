@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import os
 import logging as log
 import shutil
@@ -60,3 +61,8 @@ def clone_repo(repo_url: str, dest: str = "", force: bool = True) -> str:
         log.error(e.stdout)
         log.error(e.stderr)
         return None
+
+
+def filter_kwargs(kwargs, func):
+    func_param = inspect.signature(func).parameters.keys()
+    return {k: v for k, v in kwargs.items() if k in func_param}

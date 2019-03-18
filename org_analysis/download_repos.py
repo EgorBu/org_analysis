@@ -1,3 +1,4 @@
+"""Functionality related to retrieving list of repositories and cloning them."""
 import argparse
 import os
 import multiprocessing
@@ -9,7 +10,7 @@ from github import UnknownObjectException, Repository
 from tqdm import tqdm
 
 from org_analysis.utils import ArgumentDefaultsHelpFormatterNoNone, clone_repo, init_github, \
-    GITHUB_TOKEN_ENV_VAR
+    filter_kwargs, GITHUB_TOKEN_ENV_VAR
 
 
 CSV_NAME = "repositories.csv"
@@ -31,26 +32,40 @@ def make_repo_dest_dir(repository: Repository.Repository, root_dir: str) -> str:
     return os.path.join(root_dir, repository.full_name)
 
 
-def main(args):
-    entrypoint = init_github(login_or_token=args.login, password=args.password,
-                             token_env=args.token_env)
+def handler(login, password, token_env, organization, cores, output, force, csv_name):
+    """
+    Retrieve list of repositories in organization/user and download them to output directory and
+    save CSV with fields `URL,directory`.
+
+    :param login: login or GitHub token.
+    :param password: GitHub password.
+    :param token_env: environment variable to store GitHub token.
+    :param organization: organization name.
+    :param cores: number of cores to use for downloading repositories.
+    :param output: output directory.
+    :param force: if not force and repository was cloned already - nothing will be done. If force
+                  and repository was cloned - repository will be deleted and cloned again.
+    :param csv_name: name of csv to store statistics.
+    """
+    entrypoint = init_github(login_or_token=login, password=password,
+                             token_env=token_env)
     try:
-        org_or_user = entrypoint.get_organization(args.organization)
+        org_or_user = entrypoint.get_organization(organization)
     except UnknownObjectException:
         # switch to user
-        org_or_user = entrypoint.get_user(args.organization)
+        org_or_user = entrypoint.get_user(organization)
     # this step may take a while to complete for big organizations with many repositories
     log.info("Retrieving a list of repositories...")
     repositories = list(org_or_user.get_repos())
 
     log.info(f"Number of repositories to process is {len(repositories)}")
-    os.makedirs(args.output, exist_ok=True)
+    os.makedirs(output, exist_ok=True)
 
     arguments = [{"repo_url": r.git_url, "dest": d, "force": f}
-                 for r, d, f in zip(repositories, map(lambda r: make_repo_dest_dir(r, args.output),
+                 for r, d, f in zip(repositories, map(lambda r: make_repo_dest_dir(r, output),
                                                       repositories),
-                                    [args.force] * len(repositories))]
-    n_cores = args.cores if args.cores > 0 else multiprocessing.cpu_count()
+                                    [force] * len(repositories))]
+    n_cores = cores if cores > 0 else multiprocessing.cpu_count()
     with Pool(n_cores) as p:
         results = []
         for dest_dir, repo_url in tqdm(p.imap_unordered(clone_repo_multiprocessing, arguments),
@@ -59,7 +74,7 @@ def main(args):
     good_res = [(dest_dir, repo_url) for dest_dir, repo_url in results if dest_dir]
     log.info(f"{len(good_res)} repositories out of {len(results)} cloned "
              f"successfully")
-    csv_loc = os.path.join(args.output, CSV_NAME)
+    csv_loc = os.path.join(output, csv_name)
     with open(csv_loc, "w") as f:
         f.write("URL,directory\n")
         for dest_dir, repo_url in good_res:
@@ -81,16 +96,15 @@ def add_download_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
                         help="Number of cores to use. If <= 0 - all cores will be used.")
     parser.add_argument("-f", "--force", action="store_true",
                         help="Force to clone repository.")
-
-    args = parser.parse_args()
-    return args
+    parser.add_argument("--csv-name", default=CSV_NAME, help="Name of csv to store statistics.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(formatter_class=ArgumentDefaultsHelpFormatterNoNone)
     parser.add_argument("--log-level", default="INFO", choices=log._nameToLevel,
                         help="Logging verbosity.")
-    args = add_download_args(parser)
-    # TODO: add logging level
+    add_download_args(parser)
+    args = parser.parse_args()
     log.getLogger().setLevel(args.log_level)
-    main(args)
+    download_kwargs = filter_kwargs(vars(args), handler)
+    handler(**download_kwargs)
