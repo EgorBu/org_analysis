@@ -101,7 +101,7 @@ def add_download_args(parser: argparse.ArgumentParser) -> argparse.ArgumentParse
     parser.add_argument("--url-field-name", default=URL_FIELD_NAME,
                         help="Name of URL field in CSV (GitHub URL).")
     parser.add_argument("--directory-field-name", default=DIRECTORY_FIELD_NAME,
-                        help="Name of directory field in CSV (path to repository).")
+                        help="Name of directory field in CSV (it contains path to repository).")
 
 
 if __name__ == "__main__":
